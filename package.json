@@ -1,0 +1,16 @@
+{
+  "name": "diamond-quiz-bot",
+  "version": "1.0.0",
+  "description": "Diamond Quiz Telegram Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.65.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
