@@ -463,15 +463,15 @@ bot.on("message", async (msg) => {
     const link = getReferralLink(from.id);
     const referrals = dbData.users.filter(u => u.referred_by === from.id);
     let refList = referrals.length
-      ? referrals.map((r, i) => `${i + 1}. ${safeText(r.first_name)}${r.username ? " (@" + safeText(r.username) + ")" : ""}`).join("\n")
+      ? referrals.map((r, i) => `${i + 1}. ${esc(r.first_name)}${r.username ? " (@" + esc(r.username) + ")" : ""}`).join("\n")
       : "Hali hech kim yo'q";
 
     await bot.sendMessage(
       chatId,
       `👥 <b>Referal tizimi</b>\n\n` +
-      `🔗 Sizning referal havolangiz:\n<code>${link}</code>\n\n` +
-      `📊 Taklif qilganlar (${referrals.length} ta):\n${refList}\n\n` +
-      `💎 Har bir do'st uchun +${REFERRAL_BONUS} olmos!`,
+      `🔗 Sizning taklif havolangiz:\n<code>${link}</code>\n\n` +
+      `📊 Siz taklif qilganlar (${referrals.length} ta):\n${esc(refList)}\n\n` +
+      `💎 Har bir do'st uchun +${REFERRAL_BONUS} olmos beriladi!`,
       { parse_mode: "HTML", ...mainKeyboard(from) }
     );
     return;
@@ -557,24 +557,25 @@ bot.on("message", async (msg) => {
     userState.delete(from.id);
     await bot.sendMessage(
       chatId,
-      `✅ So'rovingiz yuborildi!\n\n` +
-      `💎 ${amount} olmos yechish so'rovi admin ${ADMIN_TG_USERNAME_WITH_AT} ga yuborildi.\n` +
-      `Tez orada siz bilan bog'lanishadi!`,
-      mainKeyboard(from || {})
+      `✅ <b>So'rovingiz yuborildi!</b>\n\n` +
+      `💎 Miqdor: <b>${amount}</b> olmos\n` +
+      `📉 Hisobingizdan yechildi. Qolgan: <b>${user.diamonds}</b> olmos\n\n` +
+      `⏳ Tez orada admin (@${ADMIN_USERNAME}) tomonidan tasdiqlanadi.`,
+      { parse_mode: "HTML", ...mainKeyboard(from) }
     );
     return;
   }
 
-  // ── OLMOS SOTB OLISH ──
+  // ── OLMOS SOTIB OLISH ──
   if (text === "🛒 Olmos sotib olish") {
     userState.delete(from.id);
     await bot.sendMessage(
       chatId,
-      `🛒 *Olmos sotib olish*\n\n` +
-      `💎 Olmos sotib olish uchun adminga yozing:\n\n` +
+      `🛒 <b>Olmos sotib olish</b>\n\n` +
+      `💎 Olmos sotib olish uchun adminga murojaat qiling:\n\n` +
       `👉 ${ADMIN_TG_USERNAME_WITH_AT}\n\n` +
-      `_Narxlar admin tomonidan belgilanadi_`,
-      { parse_mode: "Markdown", ...mainKeyboard(from || {}) }
+      `<i>Narxlar admin tomonidan belgilanadi</i>`,
+      { parse_mode: "HTML", ...mainKeyboard(from) }
     );
     return;
   }
