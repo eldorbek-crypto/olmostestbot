@@ -1,3 +1,4 @@
+require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 const path = require("path");
@@ -5,7 +6,7 @@ const http = require("http");
 const https = require("https");
 
 // ─── CONFIG ───────────────────────────────────────────────
-const TOKEN = "8587491091:AAE1ym5zMBoLqjyHumIL5LisPTw-_bzP3Ww";
+const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_USERNAME = "fihole";
 const ADMIN_TG_USERNAME_WITH_AT = "@fihole";
 const MIN_WITHDRAW = 10;
@@ -13,25 +14,6 @@ const DAILY_SUBJECT_LIMIT = 3;
 const TESTS_PER_SUBJECT = 3;
 const TEST_TIME_SECONDS = 30;
 const REFERRAL_BONUS = 3;
-
-// ─── RENDER SERVER & PINGER ───────────────────────────────
-const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end("Bot is running!");
-}).listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
-
-// Self-ping to prevent Render sleep
-const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
-if (RENDER_EXTERNAL_URL) {
-  setInterval(() => {
-    https.get(RENDER_EXTERNAL_URL, (res) => {
-      console.log(`Pinger response: ${res.statusCode}`);
-    }).on('error', (e) => console.error("Pinger error:", e.message));
-  }, 5 * 60 * 1000); // 5 minutes
-}
 
 // ─── DATABASE (JSON FILE) ────────────────────────────────
 const dbPath = path.join(__dirname, "db.json");
@@ -62,7 +44,70 @@ function saveDB() {
 loadDB();
 
 // ─── BOT ─────────────────────────────────────────────────
-const bot = new TelegramBot(TOKEN, { polling: true });
+if (!TOKEN) {
+  throw new Error("BOT_TOKEN topilmadi. Render yoki local muhitga BOT_TOKEN qo'shing.");
+}
+
+const PORT = process.env.PORT || 3000;
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+const IS_RENDER = Boolean(RENDER_EXTERNAL_URL);
+const WEBHOOK_PATH = `/telegram-webhook/${TOKEN}`;
+const WEBHOOK_URL = IS_RENDER ? `${RENDER_EXTERNAL_URL}${WEBHOOK_PATH}` : null;
+
+const bot = new TelegramBot(TOKEN, IS_RENDER ? { webHook: true } : {
+  polling: {
+    autoStart: false,
+    interval: 300,
+    params: { timeout: 10 },
+  },
+});
+
+const server = http.createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/healthz") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+    return;
+  }
+
+  if (IS_RENDER && req.method === "POST" && req.url === WEBHOOK_PATH) {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString("utf8");
+    });
+    req.on("end", async () => {
+      try {
+        const update = JSON.parse(body);
+        await bot.processUpdate(update);
+        res.writeHead(200);
+        res.end("ok");
+      } catch (e) {
+        console.error("Webhook update error:", e.message);
+        res.writeHead(500);
+        res.end("error");
+      }
+    });
+    return;
+  }
+
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Bot is running!");
+});
+
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+
+bot.on("polling_error", (err) => {
+  if (IS_RENDER) return;
+  const msg = err && err.message ? err.message : String(err);
+  console.error("Polling error:", msg);
+
+  // Telegram 409 odatda bir token bilan ikkita polling instance ishlayotganini bildiradi.
+  // Bu holatda process yiqilmasin, faqat diagnostika yozamiz.
+  if (msg.includes("409")) {
+    console.error("409 conflict: bitta BOT_TOKEN faqat bitta joyda polling qilsin (Render YOKI local).");
+  }
+});
 
 // ─── SUBJECTS & QUESTIONS ────────────────────────────────
 const subjects = [
@@ -963,7 +1008,23 @@ bot.onText(/\/(add|ayir) (\d+) (\d+)/, async (msg, match) => {
 // ─── START ────────────────────────────────────────────────
 (async () => {
   await fetchBotUsername();
-  console.log(`🤖 Bot ishga tushdi: @${botUsername}`);
+  if (IS_RENDER) {
+    try {
+      await bot.setWebHook(WEBHOOK_URL);
+      console.log(`Webhook o'rnatildi: ${WEBHOOK_URL}`);
+    } catch (e) {
+      console.error("Webhook o'rnatishda xato:", e.message);
+    }
+    console.log(`🤖 Bot webhook rejimida ishga tushdi: @${botUsername}`);
+  } else {
+    try {
+      await bot.deleteWebHook({ drop_pending_updates: false });
+      await bot.startPolling();
+    } catch (e) {
+      console.error("Local pollingni ishga tushirishda xato:", e.message);
+    }
+    console.log(`🤖 Bot polling rejimida ishga tushdi: @${botUsername}`);
+  }
   console.log("💎 Diamond Quiz Bot faol!");
 })();
 
@@ -975,5 +1036,11 @@ process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
 });
 
-process.once("SIGINT", () => { bot.stopPolling(); process.exit(); });
-process.once("SIGTERM", () => { bot.stopPolling(); process.exit(); });
+process.once("SIGINT", async () => {
+  if (!IS_RENDER) await bot.stopPolling();
+  process.exit();
+});
+process.once("SIGTERM", async () => {
+  if (!IS_RENDER) await bot.stopPolling();
+  process.exit();
+});
