@@ -11,6 +11,7 @@ Create `.env` locally (copy from `.env.example`) and set:
 
 - `BOT_TOKEN` - Telegram bot token from BotFather
 - `RENDER_EXTERNAL_URL` - Render service URL (only for Render deploy)
+- `WEBHOOK_SECRET` - optional secret for webhook protection (recommended)
 
 ## 2) Run locally
 
@@ -25,6 +26,7 @@ npm start
 - Start Command: `npm start`
 - Add env var: `BOT_TOKEN=<your_real_token>`
 - Add env var: `RENDER_EXTERNAL_URL=https://...onrender.com`
+- Optional env var: `WEBHOOK_SECRET=<random_secret_text>`
 
 ## Important: avoid 409 conflict
 

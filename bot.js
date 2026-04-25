@@ -51,8 +51,10 @@ if (!TOKEN) {
 const PORT = process.env.PORT || 3000;
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const IS_RENDER = Boolean(RENDER_EXTERNAL_URL);
-const WEBHOOK_PATH = `/telegram-webhook/${TOKEN}`;
-const WEBHOOK_URL = IS_RENDER ? `${RENDER_EXTERNAL_URL}${WEBHOOK_PATH}` : null;
+const BASE_RENDER_URL = (RENDER_EXTERNAL_URL || "").replace(/\/+$/, "");
+const WEBHOOK_SECRET_TOKEN = process.env.WEBHOOK_SECRET || `dqb_${(TOKEN || "").split(":")[0]}`;
+const WEBHOOK_PATH = `/telegram-webhook/${WEBHOOK_SECRET_TOKEN}`;
+const WEBHOOK_URL = IS_RENDER ? `${BASE_RENDER_URL}${WEBHOOK_PATH}` : null;
 
 const bot = new TelegramBot(TOKEN, IS_RENDER ? { webHook: true } : {
   polling: {
@@ -70,6 +72,13 @@ const server = http.createServer((req, res) => {
   }
 
   if (IS_RENDER && req.method === "POST" && req.url === WEBHOOK_PATH) {
+    const secretHeader = req.headers["x-telegram-bot-api-secret-token"];
+    if (secretHeader !== WEBHOOK_SECRET_TOKEN) {
+      res.writeHead(401);
+      res.end("unauthorized");
+      return;
+    }
+
     let body = "";
     req.on("data", (chunk) => {
       body += chunk.toString("utf8");
@@ -1010,7 +1019,10 @@ bot.onText(/\/(add|ayir) (\d+) (\d+)/, async (msg, match) => {
   await fetchBotUsername();
   if (IS_RENDER) {
     try {
-      await bot.setWebHook(WEBHOOK_URL);
+      await bot.setWebHook(WEBHOOK_URL, {
+        secret_token: WEBHOOK_SECRET_TOKEN,
+        drop_pending_updates: false,
+      });
       console.log(`Webhook o'rnatildi: ${WEBHOOK_URL}`);
     } catch (e) {
       console.error("Webhook o'rnatishda xato:", e.message);
